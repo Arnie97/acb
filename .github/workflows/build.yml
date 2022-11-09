@@ -1,11 +1,15 @@
-name: Build mainline Das U-Boot for ARM64 Rockchip SoCs
-
-on:
-  workflow_dispatch:
+name: Build U-Boot for Rockchip ARM64 SoCs
 
 env:
   CROSS_COMPILE: aarch64-linux-gnu-
   PLAT: rk3328
+
+on:
+  push:
+    tags: '**'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -30,9 +34,9 @@ jobs:
         export BL31=../trusted-firmware-a/build/$PLAT/release/bl31/bl31.elf
         make evb-${PLAT}_config
         make -j
+        mv u-boot{,-$PLAT}.bin
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v1
       with:
-        name: u-boot-${{ env.PLAT }}.bin
-        path: u-boot/u-boot.bin
+        files: u-boot/u-boot-${{env.PLAT}}.bin
