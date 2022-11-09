@@ -1,0 +1,38 @@
+name: Build mainline Das U-Boot for ARM64 Rockchip SoCs
+
+on:
+  workflow_dispatch:
+
+env:
+  CROSS_COMPILE: aarch64-linux-gnu-
+  PLAT: rk3328
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Install the toolchain
+      run: |
+        sudo apt-get install -qq -o=Dpkg::Use-Pty=0 gcc-aarch64-linux-gnu device-tree-compiler
+
+    - name: Build Trusted Firmware-A
+      run: |
+        git clone -q --depth 1 https://git.trustedfirmware.org/TF-A/trusted-firmware-a.git
+        cd trusted-firmware-a
+        make realclean
+        make -j PLAT=$PLAT
+
+    - name: Build Das U-Boot
+      run: |
+        git clone -q --depth 1 https://source.denx.de/u-boot/u-boot.git
+        cd u-boot
+        export BL31=../trusted-firmware-a/build/$PLAT/release/bl31/bl31.elf
+        make evb-${PLAT}_config
+        make -j
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: u-boot-${{ env.PLAT }}.bin
+        path: u-boot/u-boot.bin
