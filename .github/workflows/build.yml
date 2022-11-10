@@ -20,6 +20,9 @@ jobs:
       run: |
         sudo apt-get install -qq -o=Dpkg::Use-Pty=0 gcc-aarch64-linux-gnu device-tree-compiler
 
+    - name: Checkout custom patches
+      uses: actions/checkout@v3
+
     - name: Build Trusted Firmware-A
       run: |
         git clone -q --depth 1 https://git.trustedfirmware.org/TF-A/trusted-firmware-a.git
@@ -33,10 +36,13 @@ jobs:
         cd u-boot
         export BL31=../trusted-firmware-a/build/$PLAT/release/bl31/bl31.elf
         make evb-${PLAT}_config
+        patch .config ../btrfs.patch
         make -j
-        mv u-boot{,-$PLAT}.bin
 
     - name: Upload to GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        files: u-boot/u-boot-${{env.PLAT}}.bin
+        files: |
+          u-boot/u-boot.bin
+          u-boot/u-boot.itb
+          u-boot/idbloader.img
