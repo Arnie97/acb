@@ -6,7 +6,6 @@ on:
       board:
         description: Target board
         type: choice
-        required: true
         options:
           - aml-s9xx-box
           - bananapi
@@ -179,7 +178,6 @@ on:
       branch:
         description: Kernel and U-Boot branch
         type: choice
-        required: false
         default: current
         options:
           - legacy
@@ -189,7 +187,6 @@ on:
       release:
         description: Upstream OS release
         type: choice
-        required: true
         default: bullseye
         options:
           - buster
@@ -198,23 +195,9 @@ on:
           - focal
           - jammy
 
-      build_lib_tag:
-        description: Git branch of the armbian/build repo
-        type: string
-        default: master
-
-      user_patches_repo:
-        description: GitHub repo with user patches, "username/repo"; defaults to the current repo.
-        type: string
-
-      user_patches_tag:
-        description: Git branch of the user patches repo
-        type: string
-
       build_type:
         description: Bare minimum or batteries included?
         type: choice
-        required: true
         default: minimal
         options:
           - u-boot
@@ -223,26 +206,23 @@ on:
           - default
           - desktop
 
+      install_ksrc:
+        description: Install kernel headers and sources?
+        type: choice
+        default: none
+        options:
+          - none
+          - headers
+          - sources
+
       bsp_freeze:
-        description: Freeze kernel, U-Boot and DTB version
-        required: true
-        type: boolean
-        default: true
-
-      install_headers:
-        description: Install kernel headers
-        type: boolean
-        default: false
-
-      disable_ipv6:
-        description: Disable IPv6 support
+        description: Freeze (apt hold) the version of kernel, U-Boot, DTB, etc.
         type: boolean
         default: true
 
       rootfs_type:
         description: Root filesystem
         type: choice
-        required: true
         default: ext4
         options:
           - ext4
@@ -253,49 +233,56 @@ on:
           - fel
 
       btrfs_compression:
-        description: Btrfs compression algorithm (and optionally compression level)
-        type:
+        description: Compression method for btrfs rootfs
+        default: 'zstd:1'
 
       fixed_image_size:
-        description: Create image file of this size (in megabytes) instead of minimal
-        type: string
+        description: Fixed image file size (MB); leave blank for a minimal image
 
       boot_size:
-        description: Size (in megabytes) for separate /boot filesystem; used if rootfs set to non-ext4
-        type: string
+        description: Size (MB) for separate /boot partition; used for non-ext4 rootfs
         default: '96'
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - id: checkout-armbian-build
-      name: Checkout the armbian/build repository @ ${{ inputs.build_lib_tag }}
+      name: Checkout the armbian/build repository
       uses: actions/checkout@v3
       with:
         repository: armbian/build
-        ref: ${{ inputs.build_lib_tag }}
 
     - id: checkout-user-patches
-      name: Checkout the user patches @ ${{ inputs.user_patches_tag }}
+      name: Checkout the user patches @ ${{ github.ref }}
       uses: actions/checkout@v3
-      if: inputs.user_patches_repo
       with:
-        repository: ${{ inputs.user_patches_repo }}
-        ref: ${{ inputs.user_patches_tag }}
-        path: build
+        path: custom
 
     - id: compile
       name: Compile
-      run: build/compile.sh
+      run: |
+        exists() { [ -e "$1" ] }
+        if exists custom/*
+          then mv custom/* .
+        fi
+        mkdir -p userpatches
+        env >> userpatches/config-example.conf
+        ./compile.sh
       env:
         BOARD: ${{ inputs.board }}
         BRANCH: ${{ inputs.branch }}
         RELEASE: ${{ inputs.release }}
-        UBOOT_ONLY: ${{ inputs.build_type == 'u-boot' && 'yes' }}
-        KERNEL_ONLY: ${{ inputs.build_type == 'kernel' && 'yes' }}
-        BUILD_MINIMAL: ${{ inputs.build_type == 'minimal' && 'yes' }}
-        BUILD_DESKTOP: ${{ inputs.build_type == 'desktop' && 'yes' }}
+        UBOOT_ONLY: ${{ inputs.build_type == 'u-boot' && 'yes' || 'no' }}
+        KERNEL_ONLY: ${{ inputs.build_type == 'kernel' && 'yes' || 'no' }}
+        BUILD_MINIMAL: ${{ inputs.build_type == 'minimal' && 'yes' || 'no' }}
+        BUILD_DESKTOP: ${{ inputs.build_type == 'desktop' && 'yes' || 'no' }}
+        INSTALL_HEADERS: ${{ inputs.install_ksrc != 'none' && 'yes' || 'no' }}
+        INSTALL_KSRC: ${{ inputs.install_ksrc == 'sources' && 'yes' || 'no' }}
+        ROOTFS_TYPE: ${{ inputs.rootfs_type }}
+        BTRFS_COMPRESSION: ${{ inputs.btrfs_compression }}
+        FIXED_IMAGE_SIZE: ${{ inputs.fixed_image_size }}
+        BOOTSIZE: ${{ inputs.boot_size }}
         KERNEL_CONFIGURE: no  # use user patches
         COMPRESS_OUTPUTIMAGE: yes
 
@@ -303,4 +290,4 @@ jobs:
       name: Upload to GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        files: build/output
+        files: output
