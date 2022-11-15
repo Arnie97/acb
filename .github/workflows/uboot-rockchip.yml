@@ -36,7 +36,7 @@ jobs:
         cd u-boot
         export BL31=../trusted-firmware-a/build/$PLAT/release/bl31/bl31.elf
         make evb-${PLAT}_config
-        patch .config ../btrfs.patch
+        patch .config ../uboot-btrfs.patch
         make -j
 
     - name: Upload to GitHub Release
