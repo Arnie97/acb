@@ -262,13 +262,15 @@ jobs:
     - id: compile
       name: Compile
       run: |
-        exists() { [ -e "$1" ] }
+        exists() {
+          [ -e "$1" ]
+        }
         if exists custom/*
           then mv custom/* .
         fi
         mkdir -p userpatches
         env >> userpatches/config-example.conf
-        ./compile.sh
+        ./compile.sh || tail -9999999 /home/runner/work/acb/acb/output/*/*.log
       env:
         BOARD: ${{ inputs.board }}
         BRANCH: ${{ inputs.branch }}
